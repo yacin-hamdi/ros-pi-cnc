@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             "check_temperature = pi_tests.check_temperature:main", 
             "create_folder_server = pi_tests.create_folder_server:main",
+            "create_folder_client = pi_tests.create_folder_client:main"
         ],
     },
 )
