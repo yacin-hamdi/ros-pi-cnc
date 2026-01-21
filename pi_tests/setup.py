@@ -24,7 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            "check_temperature = pi_tests.check_temperature:main"
+            "check_temperature = pi_tests.check_temperature:main", 
+            "create_folder_server = pi_tests.create_folder_server:main",
         ],
     },
 )
