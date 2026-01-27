@@ -22,8 +22,9 @@ void loop() {
  if(Serial.available() > 0) {
   char axis, sign;
   long steps;
-  int stepPin, dirPin;
+  int stepPin=-1, dirPin=-1;
   String cmd = Serial.readStringUntil("\n");
+  Serial.println("Command received");
   cmd.trim();
   // Command in the format axis,dir,speed(x,+,100)
   if(sscanf(cmd.c_str(), "%c,%c,%ld", &axis, &sign, &steps) == 3){
