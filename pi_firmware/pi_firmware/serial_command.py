@@ -23,7 +23,7 @@ class SerialCommand(Node):
     def led_callback(self, msg: String):
         self.get_logger().info(f"Received command: {msg.data}")
         self.ser.write(f"{msg.data}\n".encode('utf-8'))
-        time.sleep(1.5)  # Give Arduino time to respond
+        # time.sleep(1.5)  # Give Arduino time to respond
         if self.ser.in_waiting > 0:
             reply = self.ser.readline().decode('utf-8').strip()
             self.get_logger().info(f"Arduino replied: {reply}")
