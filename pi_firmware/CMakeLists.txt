@@ -17,6 +17,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   ${PROJECT_NAME}/led_control.py 
   ${PROJECT_NAME}/serial_command.py
+  ${PROJECT_NAME}/joy_test.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
