@@ -10,21 +10,16 @@ class CncSerialTeleop(Node):
         super().__init__('cnc_serial_teleop')
         self.sub = self.create_subscription(Joy, 'joy', self.joy_callback, 10)
         
-        # Open Serial Port (Match your Arduino baud rate)
         self.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=0.1)
         
-        time.sleep(2)  # Give it 2 seconds
+        time.sleep(2)  
     
-        # Clear the startup text from the buffer
         self.ser.flushInput()
-        
-        # Now send the modes
-        self.ser.write(b"\r\n\r\n") # Wake up characters
         time.sleep(0.5)
         self.ser.write(b"G91 G21\n") 
         self.get_logger().info("CNC Set to Relative Mode (G91)")
         self.last_command_time = self.get_clock().now()
-        self.min_interval = 0.02  # Max 20 commands per second (50ms)
+        self.min_interval = 0.05  # Max 20 commands per second (50ms)
 
         self.get_logger().info("CNC Serial Teleop Node Initialized")
         self.moving = True
@@ -33,20 +28,21 @@ class CncSerialTeleop(Node):
         
         now = self.get_clock().now()
         
-        # 1. Time-based limit
         if (now - self.last_command_time).nanoseconds / 1e9 < self.min_interval:
             return
 
         
-        x_val = msg.axes[1]
+        x_val = msg.axes[0]
+        y_val = msg.axes[1]
         
-        if abs(x_val) > 0.2:  # Smaller deadzone for better feel
+        if abs(x_val) > 0.2 or abs(y_val) > 0.2:  # Smaller deadzone for better feel
             # Map stick to a small relative distance (e.g., 2mm)
             step_x = x_val * 1.0 
+            step_y = y_val * 1.0
             
             # Use the $J= Jogging command (Real-time and interruptible)
             # This is much smoother than G1
-            command = f"$J=G91 X{step_x:.2f} F800\n"
+            command = f"$J=G91 X{step_x:.2f} Y{step_y:.2f} F10\n"
             
             self.ser.write(command.encode('utf-8'))
             self.get_logger().info(f"Sent: {command.strip()}")
