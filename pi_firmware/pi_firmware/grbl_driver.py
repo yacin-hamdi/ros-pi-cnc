@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+import serial
+import time
+
+class GrblDriver(Node):
+    def __init__(self):
+        super().__init__('GrblDriver')
+
+        self.serial_port = '/dev/ttyACM0'
+        self.baud_rate = 115200
+
+        self.feed_rate = 100    # Speed in mm/min
+        self.loop_rate = 0.1
+        self.step_scaler = 1.0
+
+        self.sub_vel_ = self.create_subscription(Twist, '/cmd_vel', self.vel_callback, 10)
+        self.pub_joints = self.create_publisher(JointState, '/joint_states', 10)
+
+
+        try:
+            self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=0.1)
+            time.sleep(2)  
+            self.ser.flushInput()
+            time.sleep(0.5)
+            self.ser.write(b"G91 G21\n") 
+            self.get_logger().info(f"Connected to GRBL on {self.serial_port}")
+        except Exception as e:
+            self.get_logger().error(f"Could not connect to GRBL: {e}")
+            return 
+
+        self.latest_twist = Twist()
+        self.moving = False
+
+        self.timer = self.create_timer(self.loop_rate, self.control_loop)
+
+
+    def vel_callback(self, msg):
+        self.latest_twist = msg
+
+    def control_loop(self):
+        while self.ser.in_waiting:
+            try: 
+                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+
+                if line.startswith('<'):
+                    self.parse_and_publish_joints(line)
+
+            except:
+                pass
+        
+        x_vel = self.latest_twist.linear.x 
+        y_vel = self.latest_twist.linear.y 
+
+        if abs(x_vel) > 0.05 or abs(y_vel) > 0.05:
+
+            step_x = x_vel * self.step_scaler
+            step_y = y_vel * self.step_scaler
+
+            command = f"$J=G91 X{step_x:.3f} Y{step_y:.3f} F{self.feed_rate}\n"
+            self.ser.write(command.encode('utf-8'))
+            self.is_moving = True
+        else:
+            if self.is_moving:
+                self.ser.write(b"\x85")
+                self.ser.flushInput()
+                self.is_moving = False
+                self.get_logger().info("Stopping")
+
+        self.ser.write(b"?")
+
+    def parse_and_publish_joints(self, data):
+        # Regex to find MPos:1.23,4.56,7.89
+        match = re.search(r'MPos:(-?[\d\.]+),(-?[\d\.]+),(-?[\d\.]+)', data)
+        if match:
+            # Convert Millimeters (GRBL) to Meters (ROS)
+            x_m = float(match.group(1)) / 1000.0
+            y_m = float(match.group(2)) / 1000.0
+            
+            msg = JointState()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.name = ['joint_x', 'joint_y'] # Must match your URDF
+            msg.position = [x_m, y_m]
+            
+            self.pub_joints.publish(msg)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = CncSerialTeleop()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

@@ -10,7 +10,7 @@ class CncSerialTeleop(Node):
         super().__init__('cnc_serial_teleop')
         self.sub = self.create_subscription(Joy, 'joy', self.joy_callback, 10)
         
-        self.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=0.1)
+        self.ser = serial.Serial('/dev/ttyACM1', 115200, timeout=0.1)
         
         time.sleep(2)  
     
@@ -42,7 +42,7 @@ class CncSerialTeleop(Node):
             
             # Use the $J= Jogging command (Real-time and interruptible)
             # This is much smoother than G1
-            command = f"$J=G91 X{step_x:.2f} Y{step_y:.2f} F10\n"
+            command = f"$J=G91 X{step_x:.2f} Y{step_y:.2f} F100\n"
             
             self.ser.write(command.encode('utf-8'))
             self.get_logger().info(f"Sent: {command.strip()}")
