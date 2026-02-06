@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="my_robot">
+  <link name="base_footprint"/>
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="1 0.74 0.05"/>
+      </geometry>
+      <origin xyz="0 0 0.025" rpy="0 0 0"/>
+      <material name="material_name">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <visual>
+      <geometry>
+        <box size="0.14 0.74 1"/>
+      </geometry>
+      <origin xyz="-0.57 0 0.5" rpy="0 0 0"/>
+    </visual>
+  </link>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="x_link">
+    <visual>
+      <geometry>
+        <box size="0.15 0.15 0.3"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="x_link">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="joint_x" type="prismatic">
+    <parent link="base_link"/>
+    <child link="x_link"/>
+    <origin xyz="0 0 0.15" rpy="0 0 0"/>
+    <limit lower="-0.2" upper="0.2" effort="100" velocity="1"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+  <link name="y_link">
+    <visual>
+      <geometry>
+        <box size="0.56 0.84 0.02"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="y_link">
+        <color rgba="0 0 1 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="joint_y" type="prismatic">
+    <parent link="x_link"/>
+    <child link="y_link"/>
+    <origin xyz="0 0 0.15" rpy="0 0 0"/>
+    <limit lower="-0.2" upper="0.2" effort="100" velocity="1"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+</robot>
