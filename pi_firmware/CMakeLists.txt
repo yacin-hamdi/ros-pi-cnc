@@ -18,6 +18,7 @@ install(PROGRAMS
   ${PROJECT_NAME}/led_control.py 
   ${PROJECT_NAME}/serial_command.py
   ${PROJECT_NAME}/joy_control_cnc.py
+  ${PROJECT_NAME}/grbl_driver.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

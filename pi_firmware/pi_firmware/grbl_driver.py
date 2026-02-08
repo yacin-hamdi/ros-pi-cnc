@@ -2,8 +2,10 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import JointState
 import serial
 import time
+import re
 
 class GrblDriver(Node):
     def __init__(self):
@@ -44,12 +46,13 @@ class GrblDriver(Node):
         while self.ser.in_waiting:
             try: 
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                
 
                 if line.startswith('<'):
                     self.parse_and_publish_joints(line)
 
-            except:
-                pass
+            except Exception as e:
+                        self.get_logger().error(f"CRASH in parser: {e}")
         
         x_vel = self.latest_twist.linear.x 
         y_vel = self.latest_twist.linear.y 
@@ -60,35 +63,43 @@ class GrblDriver(Node):
             step_y = y_vel * self.step_scaler
 
             command = f"$J=G91 X{step_x:.3f} Y{step_y:.3f} F{self.feed_rate}\n"
+            self.get_logger().info("[command]: " + command)
             self.ser.write(command.encode('utf-8'))
-            self.is_moving = True
+            self.moving = True
+            self.ser.write(b"?")
         else:
-            if self.is_moving:
+            if self.moving:
                 self.ser.write(b"\x85")
                 self.ser.flushInput()
-                self.is_moving = False
-                self.get_logger().info("Stopping")
+                self.moving = False
+                # self.get_logger().info("Stopping")
+                self.ser.write(b"?")
 
-        self.ser.write(b"?")
+        
 
     def parse_and_publish_joints(self, data):
         # Regex to find MPos:1.23,4.56,7.89
         match = re.search(r'MPos:(-?[\d\.]+),(-?[\d\.]+),(-?[\d\.]+)', data)
+        
         if match:
             # Convert Millimeters (GRBL) to Meters (ROS)
             x_m = float(match.group(1)) / 1000.0
             y_m = float(match.group(2)) / 1000.0
-            
+
+            self.get_logger().info(f"[jointState]: {x_m}, {y_m}")
+
             msg = JointState()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.name = ['joint_x', 'joint_y'] # Must match your URDF
+            
             msg.position = [x_m, y_m]
+            
             
             self.pub_joints.publish(msg)
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CncSerialTeleop()
+    node = GrblDriver()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
