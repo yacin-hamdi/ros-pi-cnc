@@ -83,8 +83,8 @@ class GrblDriver(Node):
         
         if match:
             # Convert Millimeters (GRBL) to Meters (ROS)
-            x_m = float(match.group(1)) / 1000.0
-            y_m = float(match.group(2)) / 1000.0
+            x_m = -float(match.group(2)) / 500.0
+            y_m = -float(match.group(1)) / 500.0
 
             self.get_logger().info(f"[jointState]: {x_m}, {y_m}")
 
