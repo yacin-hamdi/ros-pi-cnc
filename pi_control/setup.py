@@ -28,7 +28,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            "teleop_joy = pi_control.teleop_joy:main"
+            "teleop_joy = pi_control.teleop_joy:main",
+            "llm_commander = pi_control.llm_commander:main"
         ],
     },
 )
