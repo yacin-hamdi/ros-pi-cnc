@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import JointState
+from geometry_msgs.msg import Point
 import serial
 import time
 import re
@@ -20,6 +21,7 @@ class GrblDriver(Node):
 
         self.sub_vel_ = self.create_subscription(Twist, '/cmd_vel', self.vel_callback, 10)
         self.pub_joints = self.create_publisher(JointState, '/joint_states', 10)
+        self.sub_abs_ = self.create_subscription(Point, "cnc/move_to", self.abs_callback, 10)
 
 
         try:
@@ -41,6 +43,19 @@ class GrblDriver(Node):
 
     def vel_callback(self, msg):
         self.latest_twist = msg
+
+    def abs_callback(self, msg):
+        if self.moving:
+            self.get_logger().info("Ignoring LLM command: Joystick is active.")
+            return
+        
+        target_x = msg.x * 1.0
+        target_y = msg.y * 1.0
+
+        command = f"G90 G0 X{target_x:.3f} Y{target_y:.3f}\n"
+
+        self.get_logger().info(f"LLM command: {command.strip()}")
+        self.ser.write(command.encode('utf-8'))
 
     def control_loop(self):
         while self.ser.in_waiting:
