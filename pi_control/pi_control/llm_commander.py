@@ -3,6 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Point
+from std_srvs.srv import Trigger
 import json 
 import time
 
@@ -11,12 +12,27 @@ class LLMCommander(Node):
         super().__init__("llm_commander")
 
         self.pub_gcode_ = self.create_publisher(Point, "/cnc/move_to", 10)
+        self.cli_home = self.create_client(Trigger, "cnc/set_home")
+
+        while not self.cli_home.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("Waiting for Home Service...")
+        
+        self.set_home_position()
 
         self.MAX_X = 85.0
         self.MAX_Y = 52.0
         self.get_logger().info("LLM Commander Ready. Type 'draw a box' to test.")
 
         self.run_interactive_mode()
+
+    def set_home_position(self):
+        req = Trigger.Request()
+        future = self.cli_home.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result().success:
+            self.get_logger().info("Startup SUCCESS: Home set to (0, 0).")
+        else:
+            self.get_logger().info("ERROR: Could not set home position!")
 
     def run_interactive_mode(self):
 
@@ -37,11 +53,11 @@ class LLMCommander(Node):
         if "box" in text or "square" in text:
 
             return [
-                {"x": 30, "y": 15}, # Start
-                {"x": 50, "y": 15}, # Right
-                {"x": 50, "y": 35}, # Up
-                {"x": 30, "y": 35}, # Left
-                {"x": 30, "y": 15}
+                {"x": 0, "y": 0}, # Start
+                {"x": 30, "y": 0}, # Right
+                {"x": 30, "y": 15}, # Up
+                {"x": 0, "y": 15}, # Left
+                {"x": 0, "y": 0}
             ]
         elif "center" in text:
             return [{"x": 42.5, "y": 26.0}]

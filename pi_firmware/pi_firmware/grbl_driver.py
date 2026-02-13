@@ -4,6 +4,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Point
+from std_srvs.srv import Trigger
 import serial
 import time
 import re
@@ -23,6 +24,8 @@ class GrblDriver(Node):
         self.pub_joints = self.create_publisher(JointState, '/joint_states', 10)
         self.sub_abs_ = self.create_subscription(Point, "cnc/move_to", self.abs_callback, 10)
 
+        self.srv_home_ = self.create_service(Trigger, '/cnc/set_home', self.home_callback)
+
 
         try:
             self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=0.1)
@@ -39,6 +42,17 @@ class GrblDriver(Node):
         self.moving = False
 
         self.timer = self.create_timer(self.loop_rate, self.control_loop)
+
+    def home_callback(self, request, response):
+        if self.ser and self.ser.is_open:
+            self.ser.write(b"G92 X0 Y0 Z0\n")
+            self.get_logger().info("Home Position Reset (G92)")
+            response.success = True
+            response.message = "Machine Zeroed Successfully"
+        else: 
+            response.success = False
+            response.message = "Machine Not Connected"
+        return response
 
 
     def vel_callback(self, msg):
