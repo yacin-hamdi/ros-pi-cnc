@@ -33,6 +33,7 @@ class Coordinate(BaseModel):
     y: float = Field(..., description="The Y position in millimeters (0-52)")
 
 class ListCoordinates(BaseModel):
+    shape_name: str = Field(..., description="Name of the shape being drawn (e.g., 'square', 'triangle', 'circle')")
     points: list[Coordinate] = Field(..., description="The complete list of sequential coordinates to draw")
 
 
@@ -90,12 +91,63 @@ class LLMCommander(Node):
             EXAMPLE 2:
             User: "Draw a triangle in the middle"
             Thought: Center is ~42,26. I will calculate 4 points around that center.
-            Action: call draw_shape(...)
+            Action: call draw_shape(shape_name="triangle", points=[...])
             """
+        # Create a wrapper function that captures self
+        def create_draw_shape_tool(node_instance):
+            @function_tool
+            async def draw_shape(path: ListCoordinates):
+                """
+                Moves the CNC plotter through a list of points to draw a shape.
+                
+                Args:
+                    path: Object containing shape_name and list of coordinates (x, y in millimeters)
+                
+                Returns:
+                    Success message when drawing is complete
+                """
+
+                print(f"\n[DEBUG] Tool called! shape_name='{path.shape_name}', {len(path.points)} points")
+                count = len(path.points)
+                node_instance.get_logger().info(f"🎨 Drawing {path.shape_name} ({count} points)...")
+
+                for i, pt in enumerate(path.points):
+                    # 1. Validate against Limits (Double Safety)
+                    print(f"[DEBUG] Processing point {i+1}/{count}")
+                    x = float(pt.x)
+                    y = float(pt.y)
+                    
+                    x = max(0.0, min(x, node_instance.MAX_X))
+                    y = max(0.0, min(y, node_instance.MAX_Y))
+                    print(f"[DEBUG] Validated: X={x}mm, Y={y}mm")
+                    
+                    # 2. Convert Millimeters to Meters (ROS Standard)
+                    msg = Point()
+                    msg.x = x / 1.0
+                    msg.y = y / 1.0
+                    msg.z = 0.0
+                    
+                    print(f"[DEBUG] Publishing message...")
+                    node_instance.pub_gcode_.publish(msg)
+                    node_instance.get_logger().info(f"Point {i+1}/{count}: X={x}mm, Y={y}mm")
+                    
+                    # 3. Wait for move to finish
+                    await asyncio.sleep(0.1)
+                
+                result = f"SUCCESS: Finished drawing {path.shape_name} with {count} points. Task complete."
+                print(f"[DEBUG] Tool returning: {result}")
+                return result
+            
+            return draw_shape
+
+        self.draw_shape = create_draw_shape_tool(self)
+
+        # Create agent with tool already registered
         self.cnc_agent = Agent(
             name="CNC Agent", 
             instructions=instructions,
-            model=openai_model
+            model=model,
+            tools=[self.draw_shape]  # Register tool here
         )
         
         self.get_logger().info("LLM Commander Ready")
@@ -111,63 +163,48 @@ class LLMCommander(Node):
             self.get_logger().info("ERROR: Could not set home position!")
 
     
-    @function_tool
-    async def draw_shape(self, path: ListCoordinates):
-        """
-        Moves the robot through a list of points.
-        """
-
-        print(f"\n[DEBUG] Agent called tool with: {path.points}")
-        count = len(path.points)
-        self.get_logger().info(f"🎨 Drawing {path.shape_name} ({count} points)...")
-
-        for i, pt in enumerate(path.points):
-            # 1. Validate against Limits (Double Safety)
-            x = float(pt.x)
-            y = float(pt.y)
-            
-            x = max(0.0, min(x, self.MAX_X))
-            y = max(0.0, min(y, self.MAX_Y))
-            
-            # 2. Convert Millimeters to Meters (ROS Standard)
-            msg = Point()
-            msg.x = x / 1.0
-            msg.y = y / 1.0
-            msg.z = 0.0
-            
-            self.pub_gcode_.publish(msg)
-            self.get_logger().info(f"Moving to: X={x}mm, Y={y}mm")
-            
-            # 3. Wait for move to finish? 
-            # In a simple version, we just sleep. 
-            # Ideally, we should listen to 'joint_states' to know when we arrived.
-            await asyncio.sleep(1.5)
-        
-        return f"Finished drawing"
     
 
 async def run_node():
     rclpy.init()
     node = LLMCommander()
     
-    # Register tool manually to instance
-    node.cnc_agent.tools = [node.draw_shape]
-    
     print("\n--- CNC AGENT ONLINE ---")
+    print(f"Available tools: {len(node.cnc_agent.tools)} registered")
+    for tool in node.cnc_agent.tools:
+        tool_name = getattr(tool, 'name', getattr(tool, '__name__', str(tool)))
+        print(f"  - {tool_name}")
+    print("Type 'exit' or 'quit' to stop\n")
     
     while rclpy.ok():
         try:
             user_input = await asyncio.to_thread(input, "User: ")
             if user_input.lower() in ["exit", "quit"]: break
             
+            print("\n[DEBUG] Sending to agent...")
             response = await Runner.run(
                 node.cnc_agent,
                 input=user_input,
             )
-            print(f"Agent: {response.final_output}")
+            
+            # Print debug info
+            print(f"\n[DEBUG] Response type: {type(response)}")
+            print(f"[DEBUG] Final output: {response.final_output}")
+            
+            # Try to print intermediate steps if available
+            if hasattr(response, 'steps'):
+                print(f"[DEBUG] Number of steps: {len(response.steps)}")
+                for i, step in enumerate(response.steps):
+                    print(f"[DEBUG] Step {i}: {step}")
+            
+            print(f"\nAgent: {response.final_output}\n")
             
         except KeyboardInterrupt:
             break
+        except Exception as e:
+            print(f"\n[ERROR] Exception occurred: {e}")
+            import traceback
+            traceback.print_exc()
             
     node.destroy_node()
     rclpy.shutdown()
@@ -177,3 +214,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
